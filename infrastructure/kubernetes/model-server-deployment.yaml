@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-server
+  labels:
+    app: model-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: model-server
+  template:
+    metadata:
+      labels:
+        app: model-server
+    spec:
+      containers:
+      - name: tf-serving
+        image: tensorflow/serving:latest
+        ports:
+        - containerPort: 8501
+          name: http
+        - containerPort: 8500
+          name: grpc
+        volumeMounts:
+        - name: model-storage
+          mountPath: /models/treasury_model
+        - name: model-config
+          mountPath: /models/models.config
+          subPath: models.config
+        env:
+        - name: MODEL_NAME
+          value: "treasury_model"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+        readinessProbe:
+          httpGet:
+            path: /v1/models/treasury_model
+            port: 8501
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: model-storage-pvc
+      - name: model-config
+        configMap:
+          name: model-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-server
+spec:
+  selector:
+    app: model-server
+  ports:
+  - port: 8501
+    targetPort: 8501
+    name: http
+  - port: 8500
+    targetPort: 8500
+    name: grpc
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-storage-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: model-config
+data:
+  models.config: |
+    model_config_list {
+      config {
+        name: "treasury_model"
+        base_path: "/models/treasury_model"
+        model_platform: "tensorflow"
+        model_version_policy {
+          all {}
+        }
+      }
+    }

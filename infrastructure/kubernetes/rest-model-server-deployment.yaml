@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rest-model-server
+  labels:
+    app: rest-model-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rest-model-server
+  template:
+    metadata:
+      labels:
+        app: rest-model-server
+    spec:
+      containers:
+      - name: model-server
+        image: rest-model-server:latest  # You would build this image with your REST server code
+        ports:
+        - containerPort: 8000
+        env:
+        - name: REGISTRY_PATH
+          value: "/models"
+        volumeMounts:
+        - name: model-storage
+          mountPath: /models
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: model-storage-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rest-model-server
+spec:
+  selector:
+    app: rest-model-server
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+
+---
+# Horizontal Pod Autoscaler for scaling based on CPU utilization
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rest-model-server-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rest-model-server
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

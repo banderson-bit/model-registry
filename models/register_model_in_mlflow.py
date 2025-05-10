@@ -6,6 +6,7 @@ import pickle
 import mlflow
 import logging
 import argparse
+import boto3
 from typing import Dict, Any, Optional
 import pandas as pd
 import numpy as np
@@ -19,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 def register_model_in_mlflow(model_path: str, 
                             mlflow_tracking_uri: str, 
+                            s3_endpoint_url: str = None,
+                            aws_access_key_id: str = None,
+                            aws_secret_access_key: str = None,
                             experiment_name: str = "TreasuryPriceModel", 
                             model_name: str = "treasury-price-model") -> str:
     """Register a pickled model in MLflow.
@@ -26,6 +30,9 @@ def register_model_in_mlflow(model_path: str,
     Args:
         model_path: Path to the pickled model
         mlflow_tracking_uri: MLflow tracking URI
+        s3_endpoint_url: S3 endpoint URL for MinIO
+        aws_access_key_id: AWS access key ID for MinIO
+        aws_secret_access_key: AWS secret access key for MinIO
         experiment_name: Name of the MLflow experiment
         model_name: Name to register the model as
         
@@ -34,6 +41,33 @@ def register_model_in_mlflow(model_path: str,
     """
     # Set MLflow tracking URI
     mlflow.set_tracking_uri(mlflow_tracking_uri)
+    
+    # Configure MinIO as S3 storage for artifacts if provided
+    if s3_endpoint_url and aws_access_key_id and aws_secret_access_key:
+        # Set environment variables for MinIO
+        os.environ['MLFLOW_S3_ENDPOINT_URL'] = s3_endpoint_url
+        os.environ['AWS_ACCESS_KEY_ID'] = aws_access_key_id
+        os.environ['AWS_SECRET_ACCESS_KEY'] = aws_secret_access_key
+        
+        # Optional: Create boto3 client to test the connection
+        try:
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=s3_endpoint_url,
+                aws_access_key_id=aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key,
+                region_name='us-east-1'  # Any region works for MinIO
+            )
+            
+            # Check if bucket exists, create if needed
+            try:
+                s3_client.head_bucket(Bucket='mlflow')
+                logger.info("MinIO mlflow bucket exists and is accessible")
+            except Exception:
+                logger.warning("MinIO mlflow bucket doesn't exist yet, will be created by MinIO init")
+                
+        except Exception as e:
+            logger.warning(f"Unable to connect to MinIO: {e}")
     
     # Create or get experiment
     try:
@@ -138,6 +172,21 @@ def main():
         help='MLflow tracking URI'
     )
     parser.add_argument(
+        '--s3-endpoint-url',
+        default='http://localhost:9000',
+        help='S3 endpoint URL for MinIO'
+    )
+    parser.add_argument(
+        '--aws-access-key-id',
+        default='minio',
+        help='AWS access key ID for MinIO'
+    )
+    parser.add_argument(
+        '--aws-secret-access-key',
+        default='minio123',
+        help='AWS secret access key for MinIO'
+    )
+    parser.add_argument(
         '--experiment-name', 
         default='TreasuryPriceModel',
         help='Name of the MLflow experiment'
@@ -158,6 +207,9 @@ def main():
     register_model_in_mlflow(
         model_path=args.model_path,
         mlflow_tracking_uri=args.mlflow_tracking_uri,
+        s3_endpoint_url=args.s3_endpoint_url,
+        aws_access_key_id=args.aws_access_key_id,
+        aws_secret_access_key=args.aws_secret_access_key,
         experiment_name=args.experiment_name,
         model_name=args.model_name
     )

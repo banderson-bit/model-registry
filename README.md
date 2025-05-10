@@ -7,15 +7,11 @@ A system for deploying, managing, and utilizing data science models via Kafka. T
 The system consists of several components:
 
 1. **Model Registry** - A service for storing and retrieving trained ML models
-2. **Kafka Messaging System** - For distributing model updates and data
-3. **Predictor Application** - Consumes data events, applies models, and produces signals
-4. **Consumer Application** - Processes signals from the predictions
-5. **MLflow Integration** - For experiment tracking, model versioning and registry
+2. **MLflow Integration** - For experiment tracking, model versioning and registry
 
 ## Requirements
 
 - Python 3.8+
-- Docker and Docker Compose for Kafka infrastructure
 - Podman and Podman Compose for MLflow infrastructure
 - Required Python packages (see `requirements.txt`)
 
@@ -34,18 +30,11 @@ cd ds_models
 pip install -r requirements.txt
 ```
 
-3. Start the Kafka infrastructure:
+3. Start the Kafka and MLFlow infrastructure:
 
 ```bash
 cd infrastructure
-docker-compose up -d
-```
-
-4. Start the MLflow infrastructure with Podman:
-
-```bash
-cd infrastructure
-podman-compose -f mlflow-compose.yml up -d
+podman-compose up -d
 ```
 
 This will start:
@@ -56,13 +45,9 @@ This will start:
 
 ## Components
 
-### Model Registry
-
-The model registry stores machine learning models as pickle files and manages versioning. The system provides a Kafka-based notification system to inform applications when new models are available.
-
 ### MLflow Integration
 
-The system now includes MLflow integration for advanced model management:
+The system includes MLflow integration for advanced model management:
 
 - **Model Training and Pickling**: Models are trained and saved as pickle files
 - **MLflow Registry**: Models are registered in MLflow for versioning and tracking
@@ -112,72 +97,12 @@ This will:
 - Create a model wrapper compatible with MLflow's pyfunc interface
 - Register the model in MLflow under the name 'treasury-price-model'
 
-### 3. Train and Register a Model (Traditional Method)
-
-```bash
-python models/train_and_register_model.py
-```
-
-This will:
-- Train a Treasury price prediction model on synthetic data
-- Register the model in the model registry
-- Notify subscribers about the new model
-
-### 4. Start the Predictor Application
-
-```bash
-python app/run_predictor_app.py
-```
-
-This application:
-- Subscribes to the model registry for model updates
-- Consumes treasury data events
-- Applies the latest model to make predictions
-- Produces signal events with the predictions
-
-### 5. Start the Consumer Application
-
-```bash
-python app/run_consumer_app.py
-```
-
-This application:
-- Consumes signals from the predictor
-- Processes the predictions (e.g., generates alerts)
-
-### 6. Produce Treasury Data Events
-
-```bash
-python app/produce_treasury_data.py
-```
-
-This will:
-- Generate synthetic treasury data events
-- Publish them to Kafka for processing
-
-### 7. Run the MLflow-Kafka Integration Test
-
-To test the complete MLflow-Kafka integration workflow:
-
-```bash
-python tests/test_mlflow_kafka_integration.py
-```
-
-This comprehensive test will:
-1. Train and pickle the model
-2. Verify MLflow server is running
-3. Register the model in MLflow
-4. Verify Kafka server is running
-5. Set up Kafka consumers and producers that use the MLflow model
-6. Generate and send test Treasury data events
-7. Verify predictions are made and signals are produced
-
-### 8. Run the Traditional Integration Test
+### 3. Run the Traditional Integration Test
 
 To test the entire system end-to-end using the traditional registry:
 
 ```bash
-python tests/integration_test.py
+python tests/test_model_api_server.py 
 ```
 
 ## MLflow UI
